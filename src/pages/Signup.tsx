@@ -1,19 +1,47 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 export default function Signup() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      setError('Passwords do not match');
       return;
     }
-    navigate('/dashboard');
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -22,6 +50,12 @@ export default function Signup() {
         <h1 className="text-4xl md:text-5xl font-bold text-center text-blue-600">
           Sign Up
         </h1>
+
+        {error && (
+          <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSignup} className="space-y-6">
           <div className="space-y-2">
@@ -35,6 +69,7 @@ export default function Signup() {
               placeholder="Enter your email"
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
               required
+              disabled={loading}
             />
           </div>
 
@@ -49,6 +84,7 @@ export default function Signup() {
               placeholder="Enter your password"
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
               required
+              disabled={loading}
             />
           </div>
 
@@ -63,14 +99,16 @@ export default function Signup() {
               placeholder="Confirm your password"
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
               required
+              disabled={loading}
             />
           </div>
 
           <button
             type="submit"
-            className="w-full px-8 py-4 bg-blue-600 text-white rounded-lg text-xl font-semibold shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-200 mt-8"
+            className="w-full px-8 py-4 bg-blue-600 text-white rounded-lg text-xl font-semibold shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-200 mt-8 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading}
           >
-            Sign Up
+            {loading ? 'Creating account...' : 'Sign Up'}
           </button>
         </form>
 
@@ -79,6 +117,7 @@ export default function Signup() {
           <button
             onClick={() => navigate('/login')}
             className="text-blue-600 font-semibold hover:underline"
+            disabled={loading}
           >
             Login
           </button>

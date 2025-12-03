@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import TaskCard from '../components/TaskCard';
 
 interface Task {
   id: string;
@@ -10,9 +10,17 @@ interface Task {
   status: 'pending' | 'in-progress' | 'done';
 }
 
+interface Subtask {
+  id: string;
+  task_id: string;
+  title: string;
+  status: 'pending' | 'in-progress' | 'done';
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newTask, setNewTask] = useState('');
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [loading, setLoading] = useState(true);
@@ -20,7 +28,7 @@ export default function Dashboard() {
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkAuthAndLoadTasks = async () => {
+    const checkAuthAndLoadData = async () => {
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session) {
@@ -29,15 +37,18 @@ export default function Dashboard() {
         }
 
         setUserId(data.session.user.id);
-        await loadTasks(data.session.user.id);
+        await Promise.all([
+          loadTasks(data.session.user.id),
+          loadSubtasks(data.session.user.id),
+        ]);
       } catch (err) {
-        setError('Failed to load tasks');
+        setError('Failed to load data');
       } finally {
         setLoading(false);
       }
     };
 
-    checkAuthAndLoadTasks();
+    checkAuthAndLoadData();
   }, [navigate]);
 
   const loadTasks = async (uid: string) => {
@@ -52,6 +63,21 @@ export default function Dashboard() {
       setTasks(data || []);
     } catch (err) {
       setError('Failed to load tasks');
+    }
+  };
+
+  const loadSubtasks = async (uid: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('subtasks')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSubtasks(data || []);
+    } catch (err) {
+      setError('Failed to load subtasks');
     }
   };
 
@@ -137,37 +163,8 @@ export default function Dashboard() {
     navigate('/');
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'done':
-        return <CheckCircle size={20} className="text-green-500" />;
-      case 'in-progress':
-        return <Clock size={20} className="text-yellow-500" />;
-      default:
-        return <AlertCircle size={20} className="text-gray-400" />;
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-800 border-red-300';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      default:
-        return 'bg-green-100 text-green-800 border-green-300';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'done':
-        return 'bg-green-100 text-green-800 border-green-300';
-      case 'in-progress':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
+  const getTaskSubtasks = (taskId: string) => {
+    return subtasks.filter((s) => s.task_id === taskId);
   };
 
   if (loading) {
@@ -196,46 +193,16 @@ export default function Dashboard() {
             {tasks.length > 0 ? (
               <ul className="space-y-3">
                 {tasks.map((task) => (
-                  <li
-                    key={task.id}
-                    className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4 bg-gray-50 rounded-lg border-l-4 border-blue-600 hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {getStatusIcon(task.status)}
-                      <span className="text-lg text-gray-800 font-medium truncate">
-                        • {task.title}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                      <select
-                        value={task.priority}
-                        onChange={(e) => handlePriorityChange(task.id, e.target.value as 'low' | 'medium' | 'high')}
-                        className={`px-3 py-2 rounded-full border-2 text-sm font-medium cursor-pointer transition-colors ${getPriorityColor(task.priority)}`}
-                      >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                      </select>
-
-                      <select
-                        value={task.status}
-                        onChange={(e) => handleStatusChange(task.id, e.target.value as 'pending' | 'in-progress' | 'done')}
-                        className={`px-3 py-2 rounded-full border-2 text-sm font-medium cursor-pointer transition-colors ${getStatusColor(task.status)}`}
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="in-progress">In-progress</option>
-                        <option value="done">Done</option>
-                      </select>
-
-                      <button
-                        onClick={() => handleDeleteTask(task.id)}
-                        className="text-red-500 hover:text-red-700 hover:scale-110 transition-all duration-200 flex-shrink-0"
-                        aria-label="Delete task"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
+                  <li key={task.id}>
+                    <TaskCard
+                      task={task}
+                      subtasks={getTaskSubtasks(task.id)}
+                      onStatusChange={handleStatusChange}
+                      onPriorityChange={handlePriorityChange}
+                      onDeleteTask={handleDeleteTask}
+                      onSubtasksLoad={() => userId && loadSubtasks(userId)}
+                      userId={userId || ''}
+                    />
                   </li>
                 ))}
               </ul>

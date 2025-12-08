@@ -103,13 +103,14 @@ export default function TaskCard({
       );
 
       if (!response.ok) {
-        throw new Error('Failed to generate subtasks');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to generate subtasks`);
       }
 
       const data = await response.json();
       setSuggestions(data.subtasks || []);
     } catch (err) {
-      setError('Failed to generate subtasks. Please try again.');
+      setError(`Failed to generate subtasks: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setGenerating(false);
     }

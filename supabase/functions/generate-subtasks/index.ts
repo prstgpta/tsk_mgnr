@@ -31,12 +31,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) {
-      console.error("OPENAI_API_KEY not configured in Supabase environment");
+    const openrouterApiKey = Deno.env.get("OPENROUTER_API_KEY");
+    if (!openrouterApiKey) {
+      console.error("OPENROUTER_API_KEY not configured in Supabase environment");
       return new Response(
         JSON.stringify({ 
-          error: "OpenAI API key not configured. Please add OPENAI_API_KEY to your Supabase project settings." 
+          error: "OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your Supabase project settings." 
         }),
         {
           status: 500,
@@ -49,11 +49,12 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Generating subtasks for task: "${taskTitle}"`);
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiApiKey}`,
+        "Authorization": `Bearer ${openrouterApiKey}`,
+        "HTTP-Referer": "https://tasks.app",
       },
       body: JSON.stringify({
         model: "gpt-4-mini",
@@ -68,16 +69,16 @@ Deno.serve(async (req: Request) => {
           },
         ],
         temperature: 1,
-        max_completion_tokens: 2048,
+        max_tokens: 2048,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error("OpenAI API error response:", errorData);
+      console.error("OpenRouter API error response:", errorData);
       return new Response(
         JSON.stringify({ 
-          error: `OpenAI API error: ${response.statusText}. Check Supabase logs for details.` 
+          error: `OpenRouter API error: ${response.statusText}. Check Supabase logs for details.` 
         }),
         {
           status: response.status,
